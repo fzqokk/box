@@ -1,9 +1,112 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<view class="summary-card">
+			<text class="count-label">累计打卡</text>
+			<text class="count-num">{{ dates.length }} 次</text>
+			<text class="tip">打卡记录保存在本机，更换设备将不会保留</text>
+		</view>
+
+		<view class="calendar-card">
+			<view class="cal-head">
+				<text class="cal-arrow" @click="prevMonth">‹</text>
+				<text class="cal-title">{{ year }} 年 {{ month }} 月</text>
+				<text class="cal-arrow" @click="nextMonth">›</text>
+			</view>
+			<view class="week-row">
+				<text class="week" v-for="(w, i) in weekHeads" :key="i">{{ w }}</text>
+			</view>
+			<view class="grid">
+				<view class="cell" v-for="(on, i) in grid" :key="i">
+					<view v-if="on" class="dot"></view>
+				</view>
+			</view>
+		</view>
+
+		<button class="checkin-btn" :disabled="checkedToday" @click="onCheckin">
+			<text>{{ checkedToday ? '今日已打卡' : '打卡' }}</text>
+		</button>
+
+		<poster-popup :visible="posterVisible" :count="dates.length" :store-name="storeName" :qrcode-url="qrcodeUrl" :logo-url="logoUrl" @close="posterVisible = false" />
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { doCheckin, loadCheckinDates, buildMonthGrid, isCheckedToday } from '../../utils/checkin.uts'
+import { getStoreInfo } from '../../utils/cloud.uts'
+import PosterPopup from '../../components/poster-popup.uvue'
+
+const weekHeads = ['日', '一', '二', '三', '四', '五', '六']
+const dates = ref<string[]>([])
+const year = ref(new Date().getFullYear())
+const month = ref(new Date().getMonth() + 1)
+const posterVisible = ref(false)
+const storeName = ref('etiniabox')
+const logoUrl = ref('/static/logo.png')
+const qrcodeUrl = ref('')
+
+const grid = computed<boolean[]>((): boolean[] => buildMonthGrid(year.value, month.value, dates.value))
+const checkedToday = computed<boolean>((): boolean => isCheckedToday(dates.value))
+
+onShow(() => {
+	dates.value = loadCheckinDates()
+	loadStore()
+})
+
+async function loadStore() {
+	try {
+		const info = await getStoreInfo()
+		if (info != null) {
+			if (info.storeName != '') storeName.value = info.storeName
+			if (info.logoUrl != '') logoUrl.value = info.logoUrl
+			qrcodeUrl.value = info.qrcodeImageUrl
+		}
+	} catch (e) {
+		// 门店信息缺失不阻塞打卡
+	}
+}
+
+function onCheckin() {
+	const res = doCheckin()
+	dates.value = res.dates
+	if (res.firstToday) {
+		posterVisible.value = true
+	} else {
+		uni.showToast({ title: '今天已打过卡啦', icon: 'none' })
+	}
+}
+
+function prevMonth() {
+	let m = month.value - 1
+	let y = year.value
+	if (m < 1) { m = 12; y = y - 1 }
+	month.value = m
+	year.value = y
+}
+function nextMonth() {
+	let m = month.value + 1
+	let y = year.value
+	if (m > 12) { m = 1; y = y + 1 }
+	month.value = m
+	year.value = y
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.summary-card { background-color: #1A1A1A; border-radius: 24rpx; padding: 48rpx; display: flex; flex-direction: column; align-items: center; }
+	.count-label { color: #CCCCCC; font-size: 26rpx; }
+	.count-num { color: #FFFFFF; font-size: 64rpx; font-weight: bold; margin: 16rpx 0; }
+	.tip { color: #888888; font-size: 22rpx; }
+	.calendar-card { background-color: #FFFFFF; border-radius: 24rpx; padding: 32rpx; margin-top: 24rpx; }
+	.cal-head { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 24rpx; }
+	.cal-title { font-size: 30rpx; font-weight: bold; }
+	.cal-arrow { font-size: 40rpx; color: #666666; padding: 0 24rpx; }
+	.week-row { display: flex; flex-direction: row; }
+	.week { width: 14.28%; text-align: center; color: #999999; font-size: 24rpx; padding: 12rpx 0; }
+	.grid { display: flex; flex-direction: row; flex-wrap: wrap; }
+	.cell { width: 14.28%; height: 72rpx; display: flex; align-items: center; justify-content: center; }
+	.dot { width: 20rpx; height: 20rpx; border-radius: 10rpx; background-color: #C85A54; }
+	.checkin-btn { margin: 32rpx 0 48rpx; background-color: #C85A54; color: #FFFFFF; border-radius: 48rpx; }
 </style>
