@@ -34,7 +34,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onShareAppMessage } from '@dcloudio/uni-app'
 import { listPackages, listCampaigns, getStoreInfo, PackageItem, CampaignItem } from '../../utils/cloud.uts'
 
 const storeName = ref('etiniabox')
@@ -47,6 +47,12 @@ const loadingFailed = ref(false)
 onShow(() => {
 	loadData()
 })
+
+// #ifdef MP-WEIXIN
+onShareAppMessage((): { title: string; path: string } => {
+	return { title: storeName.value + ' · 摄影写真', path: '/pages/index/index' }
+})
+// #endif
 
 async function loadData() {
 	try {
