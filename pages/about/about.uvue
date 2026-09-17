@@ -1,9 +1,120 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<view v-if="isAdmin" class="admin-entry" @click="goAdmin"><text>进入管理</text></view>
+
+		<view class="head">
+			<image class="logo" :src="logoUrl" mode="aspectFill" />
+			<text class="name">{{ storeName }}</text>
+			<text class="hours" v-if="businessHours != ''">营业时间：{{ businessHours }}</text>
+		</view>
+
+		<view class="block" v-if="intro != ''">
+			<text class="block-title">店铺介绍</text>
+			<text class="intro">{{ intro }}</text>
+		</view>
+
+		<view class="block" v-if="photoUrls.length > 0">
+			<text class="block-title">店内环境</text>
+			<image v-for="(u, i) in photoUrls" :key="i" class="photo" :src="u" mode="widthFix" />
+		</view>
+
+		<view class="block" v-if="address != ''">
+			<text class="block-title">门店地址</text>
+			<view class="row" @click="openMap"><text class="link">{{ address }}</text></view>
+		</view>
+
+		<view class="block" v-if="contactPhone != ''">
+			<text class="block-title">联系电话</text>
+			<view class="row" @click="callPhone"><text class="link">{{ contactPhone }}</text></view>
+		</view>
+
+		<view v-if="loadingFailed" class="empty"><text>加载失败，请退出重试</text></view>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { getStoreInfo, checkAdmin, StoreInfo } from '../../utils/cloud.uts'
+
+const storeName = ref('etiniabox')
+const logoUrl = ref('/static/logo.png')
+const intro = ref('')
+const photoUrls = ref<string[]>([])
+const businessHours = ref('')
+const address = ref('')
+const contactPhone = ref('')
+const longitude = ref(0)
+const latitude = ref(0)
+const isAdmin = ref(false)
+const loadingFailed = ref(false)
+
+onShow(() => {
+	loadStore()
+	refreshAdmin()
+})
+
+async function loadStore() {
+	try {
+		const info: StoreInfo | null = await getStoreInfo()
+		if (info != null) {
+			if (info.storeName != '') storeName.value = info.storeName
+			if (info.logoUrl != '') logoUrl.value = info.logoUrl
+			intro.value = info.intro
+			photoUrls.value = info.photoUrls
+			businessHours.value = info.businessHours
+			address.value = info.address
+			contactPhone.value = info.contactPhone
+			longitude.value = info.longitude
+			latitude.value = info.latitude
+		}
+		loadingFailed.value = false
+	} catch (e) {
+		loadingFailed.value = true
+	}
+}
+
+async function refreshAdmin() {
+	try {
+		isAdmin.value = await checkAdmin()
+	} catch (e) {
+		isAdmin.value = false
+	}
+}
+
+function goAdmin() {
+	uni.navigateTo({ url: '/pages/admin/index' })
+}
+
+function openMap() {
+	// 仅展示店铺位置并导航，不获取用户位置
+	uni.openLocation({
+		longitude: longitude.value,
+		latitude: latitude.value,
+		name: storeName.value,
+		address: address.value
+	})
+}
+
+function callPhone() {
+	uni.makePhoneCall({ phoneNumber: contactPhone.value })
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.admin-entry { position: absolute; top: 20rpx; right: 24rpx; background-color: #1A1A1A; border-radius: 24rpx; padding: 8rpx 24rpx; }
+	.admin-entry text { color: #FFFFFF; font-size: 24rpx; }
+	.head { display: flex; flex-direction: column; align-items: center; padding: 40rpx 0; }
+	.logo { width: 160rpx; height: 160rpx; border-radius: 32rpx; }
+	.name { font-size: 40rpx; font-weight: bold; margin-top: 20rpx; }
+	.hours { font-size: 26rpx; color: #666666; margin-top: 12rpx; }
+	.block { background-color: #FFFFFF; border-radius: 24rpx; padding: 32rpx; margin-bottom: 24rpx; }
+	.block-title { font-size: 30rpx; font-weight: bold; margin-bottom: 16rpx; }
+	.intro { font-size: 28rpx; color: #444444; line-height: 1.6; }
+	.photo { width: 100%; border-radius: 16rpx; margin-bottom: 16rpx; }
+	.row { padding: 8rpx 0; }
+	.link { font-size: 28rpx; color: #1677FF; }
+	.empty { align-items: center; padding: 40rpx; }
+	.empty text { color: #999999; }
 </style>
