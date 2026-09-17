@@ -1,9 +1,200 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<text class="label">套餐名称（必填，≤30字）</text>
+		<input class="input" v-model="name" maxlength="30" placeholder="如：清新写真套餐" />
+
+		<text class="label">封面图（必填）</text>
+		<view class="img-add" @click="chooseCover">
+			<image v-if="coverPreview != ''" class="cover-preview" :src="coverPreview" mode="aspectFill" />
+			<text v-else class="add-text">＋ 选择图片</text>
+		</view>
+
+		<text class="label">一句话简介（≤40字）</text>
+		<input class="input" v-model="summary" maxlength="40" placeholder="一句话介绍套餐亮点" />
+
+		<text class="label">展示价格（仅展示，不交易）</text>
+		<input class="input" v-model="priceDisplay" maxlength="20" placeholder="如：￥299 起" />
+
+		<text class="label">参数明细（至少 1 行）</text>
+		<view class="param-edit" v-for="(p, i) in params" :key="i">
+			<input class="param-input" v-model="p.paramName" maxlength="12" placeholder="参数名（如：精修）" />
+			<input class="param-input" v-model="p.paramValue" maxlength="30" placeholder="参数值（如：15 张）" />
+			<text class="op" v-if="params.length > 1" @click="removeParam(i)">删除</text>
+		</view>
+		<text class="add-param" @click="addParam">＋ 添加参数行</text>
+
+		<text class="label">详情图（多选）</text>
+		<view class="img-row">
+			<view class="img-item" v-for="(u, i) in detailPreviews" :key="i">
+				<image class="detail-img" :src="u" mode="aspectFill" />
+				<text class="img-del" @click="removeDetail(i)">×</text>
+			</view>
+			<view class="img-add small" @click="chooseDetails"><text class="add-text">＋</text></view>
+		</view>
+
+		<view class="switch-row">
+			<text class="label inline">首页推荐</text>
+			<switch :checked="isFeatured" @change="onFeaturedChange" />
+		</view>
+		<view class="switch-row">
+			<text class="label inline">上架</text>
+			<switch :checked="status == 'upper'" @change="onStatusChange" />
+		</view>
+
+		<text class="label">排序值（越小越靠前）</text>
+		<input class="input" type="number" v-model="sort" placeholder="0" />
+
+		<button class="save-btn" @click="save">保存</button>
+		<button class="btn-plain" @click="cancel">取消</button>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { adminListPackages, adminSavePackage, uploadImage, PackageItem, PackageParam } from '../../utils/cloud.uts'
+
+const id = ref('')
+const name = ref('')
+const coverImage = ref('')      // fileID 或 ''
+const coverPreview = ref('')    // 预览：新图为本地临时路径，旧图为临时链接
+const summary = ref('')
+const priceDisplay = ref('')
+const params = ref<PackageParam[]>([{ paramName: '', paramValue: '' } as PackageParam])
+const detailImages = ref<string[]>([])      // fileID 列表
+const detailPreviews = ref<string[]>([])    // 与 detailImages 一一对应的预览
+const isFeatured = ref(false)
+const status = ref('upper')
+const sort = ref('0')
+
+onLoad((option) => {
+	const pid = option?.id ?? ''
+	if (pid != '') load(pid)
+})
+
+async function load(pid: string) {
+	try {
+		// admin 云函数 getPackageById 返回原始 snake_case 文档，这里复用 data 云函数
+		// 的 listPackagesAdmin（camelCase + 临时链接），保证旧图可预览
+		const list = await adminListPackages()
+		let found: PackageItem | null = null
+		for (let i = 0; i < list.length; i++) {
+			if (list[i].id == pid) { found = list[i]; break }
+		}
+		if (found == null) {
+			uni.showToast({ title: '套餐不存在或已删除', icon: 'none' })
+			return
+		}
+		id.value = found.id
+		name.value = found.name
+		coverImage.value = found.coverImage
+		coverPreview.value = found.coverImageUrl
+		summary.value = found.summary
+		priceDisplay.value = found.priceDisplay
+		if (found.params.length > 0) {
+			params.value = found.params
+		} else {
+			params.value = [{ paramName: '', paramValue: '' } as PackageParam]
+		}
+		detailImages.value = found.detailImages
+		detailPreviews.value = found.detailImageUrls
+		isFeatured.value = found.isFeatured
+		status.value = found.status
+		sort.value = '' + found.sort
+	} catch (e) {
+		uni.showToast({ title: '加载失败', icon: 'none' })
+	}
+}
+
+function chooseCover() {
+	uni.chooseImage({
+		count: 1,
+		success: (res) => {
+			const p = res.tempFilePaths[0]
+			uploadImage(p, 'packages').then((fileID: string) => {
+				coverImage.value = fileID
+				coverPreview.value = p
+			}).catch((e: Error) => uni.showToast({ title: e.message, icon: 'none' }))
+		}
+	})
+}
+
+function chooseDetails() {
+	uni.chooseImage({
+		count: 9,
+		success: (res) => {
+			const paths = res.tempFilePaths
+			paths.forEach((p: string) => {
+				uploadImage(p, 'packages').then((fileID: string) => {
+					detailImages.value.push(fileID)
+					detailPreviews.value.push(p)
+				}).catch((e: Error) => uni.showToast({ title: e.message, icon: 'none' }))
+			})
+		}
+	})
+}
+
+function removeDetail(i: number) {
+	detailImages.value.splice(i, 1)
+	detailPreviews.value.splice(i, 1)
+}
+
+function addParam() {
+	params.value.push({ paramName: '', paramValue: '' } as PackageParam)
+}
+function removeParam(i: number) {
+	params.value.splice(i, 1)
+}
+function onFeaturedChange(e: any) { isFeatured.value = e.detail.value }
+function onStatusChange(e: any) { status.value = e.detail.value ? 'upper' : 'lower' }
+
+function save() {
+	if (name.value.trim() == '') { uni.showToast({ title: '请填写套餐名称', icon: 'none' }); return }
+	if (coverImage.value == '') { uni.showToast({ title: '请上传封面图', icon: 'none' }); return }
+	if (params.value.length < 1) { uni.showToast({ title: '至少一行参数', icon: 'none' }); return }
+	for (let i = 0; i < params.value.length; i++) {
+		const p = params.value[i]
+		if (p.paramName.trim() == '' || p.paramValue.trim() == '') {
+			uni.showToast({ title: '参数名与参数值不能为空', icon: 'none' }); return
+		}
+	}
+	uni.showLoading({ title: '保存中' })
+	adminSavePackage({
+		id: id.value, name: name.value, coverImage: coverImage.value, coverImageUrl: '',
+		summary: summary.value, priceDisplay: priceDisplay.value, params: params.value,
+		detailImages: detailImages.value, detailImageUrls: [],
+		isFeatured: isFeatured.value, sort: parseInt(sort.value) || 0, status: status.value
+	} as PackageItem).then(() => {
+		uni.hideLoading()
+		uni.showToast({ title: '已保存', icon: 'success' })
+		setTimeout(() => { uni.navigateBack({}) }, 600)
+	}).catch((e: Error) => {
+		uni.hideLoading()
+		uni.showToast({ title: e.message, icon: 'none' })
+	})
+}
+
+function cancel() { uni.navigateBack({}) }
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.label { font-size: 26rpx; color: #666666; margin: 24rpx 8rpx 12rpx; }
+	.label.inline { margin: 0; }
+	.input { background-color: #FFFFFF; border-radius: 16rpx; padding: 20rpx 24rpx; font-size: 28rpx; }
+	.img-add { background-color: #FFFFFF; border-radius: 16rpx; height: 240rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+	.img-add.small { width: 160rpx; height: 160rpx; }
+	.cover-preview { width: 100%; height: 240rpx; }
+	.add-text { color: #999999; font-size: 40rpx; }
+	.param-edit { display: flex; flex-direction: row; align-items: center; margin-bottom: 12rpx; }
+	.param-input { flex: 1; background-color: #FFFFFF; border-radius: 16rpx; padding: 16rpx 20rpx; font-size: 26rpx; margin-right: 12rpx; }
+	.op { color: #C85A54; font-size: 26rpx; }
+	.add-param { color: #1677FF; font-size: 26rpx; padding: 12rpx 8rpx; }
+	.img-row { display: flex; flex-direction: row; flex-wrap: wrap; }
+	.img-item { position: relative; margin: 0 12rpx 12rpx 0; }
+	.detail-img { width: 160rpx; height: 160rpx; border-radius: 12rpx; }
+	.img-del { position: absolute; top: -10rpx; right: -10rpx; width: 40rpx; height: 40rpx; line-height: 40rpx; text-align: center; background-color: #1A1A1A; color: #FFFFFF; border-radius: 20rpx; font-size: 24rpx; }
+	.switch-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-top: 24rpx; }
+	.save-btn { margin-top: 40rpx; background-color: #1A1A1A; color: #FFFFFF; border-radius: 44rpx; }
+	.btn-plain { margin-top: 16rpx; background-color: #F2F2F2; color: #1A1A1A; border-radius: 44rpx; }
 </style>

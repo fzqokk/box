@@ -109,6 +109,14 @@ exports.main = async (event) => {
         return ok(docs.map((d) => mapPackage(d, urls)))
       }
 
+      case 'listPackagesAdmin': {
+        const res = await db.collection('packages')
+          .where({ deleted: false }).orderBy('sort', 'asc').limit(50).get()
+        const docs = res.data || []
+        const urls = await toUrls(docs.flatMap((d) => [d.cover_image, ...(d.detail_images || [])]))
+        return ok(docs.map((d) => mapPackage(d, urls)))
+      }
+
       case 'getPackage': {
         const doc = await getDocById('packages', payload.id)
         if (!doc || doc.status !== 'upper' || doc.deleted) return fail(404, '该套餐已下架或不存在')

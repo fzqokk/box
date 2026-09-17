@@ -1,9 +1,117 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<view class="nav-cards">
+			<view class="nav-card" @click="goNewPackage"><text class="nav-title">新增套餐</text></view>
+			<view class="nav-card" @click="goPackageList"><text class="nav-title">套餐列表管理</text></view>
+			<view class="nav-card" @click="goNewCampaign"><text class="nav-title">新增活动</text></view>
+			<view class="nav-card" @click="goStoreInfo"><text class="nav-title">门店信息维护</text></view>
+		</view>
+
+		<view class="section-head"><text class="section-title">活动管理</text><text class="new-link" @click="goNewCampaign">＋ 新增</text></view>
+		<view v-if="campaigns.length > 0">
+			<view class="camp-row" v-for="c in campaigns" :key="c.id">
+				<view class="camp-info">
+					<text class="camp-title">{{ c.title }}</text>
+					<text class="camp-meta">{{ c.season }} · {{ c.startDate }} 至 {{ c.endDate }} · {{ statusText(c) }}</text>
+				</view>
+				<view class="op-row">
+					<text class="op" @click="editCampaign(c.id)">编辑</text>
+					<text class="op" @click="toggleCampaign(c)">{{ c.status == 'upper' ? '下架' : '上架' }}</text>
+					<text class="op op-danger" @click="removeCampaign(c.id)">删除</text>
+				</view>
+			</view>
+		</view>
+		<view v-else class="empty"><text class="empty-text">暂无活动，点右上「＋ 新增」创建</text></view>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { checkAdmin, adminListCampaigns, adminSetCampaignStatus, adminDeleteCampaign, CampaignItem } from '../../utils/cloud.uts'
+
+const campaigns = ref<CampaignItem[]>([])
+
+onShow(() => {
+	gate()
+})
+
+/** 门禁：非白名单用户直接退出（页面入口本身已隐藏，双保险） */
+async function gate() {
+	try {
+		const ok = await checkAdmin()
+		if (!ok) {
+			uni.showToast({ title: '无管理权限', icon: 'none' })
+			setTimeout(() => { uni.navigateBack({}) }, 800)
+			return
+		}
+		loadCampaigns()
+	} catch (e) {
+		uni.showToast({ title: '网络异常', icon: 'none' })
+	}
+}
+
+async function loadCampaigns() {
+	try {
+		campaigns.value = await adminListCampaigns()
+	} catch (e) {
+		uni.showToast({ title: '加载失败', icon: 'none' })
+	}
+}
+
+function statusText(c: CampaignItem): string {
+	if (c.status != 'upper') return '已下架'
+	return c.expired ? '已结束' : '进行中'
+}
+
+function goNewPackage() { uni.navigateTo({ url: '/pages/admin/package-edit' }) }
+/** tabBar 页不能用 navigateTo 带参跳转，改用 storage 传递管理模式标志 */
+function goPackageList() {
+	uni.setStorageSync('pkg_admin_flag', '1')
+	uni.switchTab({ url: '/pages/package/list' })
+}
+function goNewCampaign() { uni.navigateTo({ url: '/pages/admin/campaign-edit' }) }
+function goStoreInfo() { uni.navigateTo({ url: '/pages/admin/store-info' }) }
+function editCampaign(id: string) { uni.navigateTo({ url: '/pages/admin/campaign-edit?id=' + id }) }
+
+function toggleCampaign(c: CampaignItem) {
+	const target = c.status == 'upper' ? 'lower' : 'upper'
+	adminSetCampaignStatus(c.id, target).then(() => {
+		uni.showToast({ title: '已更新', icon: 'success' })
+		loadCampaigns()
+	}).catch((e: Error) => { uni.showToast({ title: e.message, icon: 'none' }) })
+}
+
+function removeCampaign(id: string) {
+	uni.showModal({
+		title: '确认删除',
+		content: '删除后顾客端不可见（软删除，可联系开发者恢复）',
+		success: (m) => {
+			if (m.confirm) {
+				adminDeleteCampaign(id).then(() => { uni.showToast({ title: '已删除', icon: 'success' }); loadCampaigns() })
+					.catch((e: Error) => { uni.showToast({ title: e.message, icon: 'none' }) })
+			}
+		}
+	})
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.nav-cards { display: flex; flex-direction: row; flex-wrap: wrap; }
+	.nav-card { width: 306rpx; background-color: #FFFFFF; border-radius: 24rpx; padding: 40rpx 32rpx; margin: 0 24rpx 24rpx 0; }
+	.nav-card:nth-child(2n) { margin-right: 0; }
+	.nav-title { font-size: 30rpx; font-weight: bold; }
+	.section-head { display: flex; flex-direction: row; justify-content: space-between; margin: 16rpx 8rpx 16rpx; }
+	.section-title { font-size: 32rpx; font-weight: bold; }
+	.new-link { color: #1677FF; font-size: 28rpx; }
+	.camp-row { background-color: #FFFFFF; border-radius: 24rpx; padding: 24rpx; margin-bottom: 20rpx; }
+	.camp-info { display: flex; flex-direction: column; }
+	.camp-title { font-size: 30rpx; font-weight: bold; }
+	.camp-meta { font-size: 24rpx; color: #999999; margin-top: 8rpx; }
+	.op-row { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 16rpx; }
+	.op { color: #1677FF; font-size: 26rpx; margin-left: 32rpx; }
+	.op-danger { color: #C85A54; }
+	.empty { align-items: center; padding: 48rpx; }
+	.empty-text { color: #999999; font-size: 28rpx; }
 </style>

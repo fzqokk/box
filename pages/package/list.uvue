@@ -8,6 +8,11 @@
 					<text class="summary">{{ p.summary }}</text>
 					<text class="price" v-if="p.priceDisplay != ''">{{ p.priceDisplay }}</text>
 				</view>
+				<view v-if="adminMode" class="op-row">
+					<text class="op" @click.stop="editPkg(p.id)">编辑</text>
+					<text class="op" @click.stop="togglePkg(p)">{{ p.status == 'upper' ? '下架' : '上架' }}</text>
+					<text class="op op-danger" @click.stop="removePkg(p.id)">删除</text>
+				</view>
 			</view>
 		</view>
 		<view v-else class="empty"><text class="empty-text">套餐整理中，敬请期待</text></view>
@@ -17,19 +22,35 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
-import { listPackages, PackageItem } from '../../utils/cloud.uts'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { listPackages, adminListPackages, adminSetPackageStatus, adminDeletePackage, checkAdmin, PackageItem } from '../../utils/cloud.uts'
 
 const list = ref<PackageItem[]>([])
 const loadingFailed = ref(false)
+const adminMode = ref(false)
 
 onShow(() => {
-	loadData()
+	// tabBar 页无法带参跳转：管理首页经 storage 传递管理模式标志，消费后立即清除
+	if (uni.getStorageSync('pkg_admin_flag') == '1') {
+		uni.removeStorageSync('pkg_admin_flag')
+		// #ifdef MP-WEIXIN
+		checkAdmin().then((ok: boolean) => {
+			adminMode.value = ok
+			loadData()
+		}).catch(() => { adminMode.value = false })
+		// #endif
+	} else {
+		loadData()
+	}
 })
 
 async function loadData() {
 	try {
-		list.value = await listPackages()
+		if (adminMode.value) {
+			list.value = await adminListPackages()
+		} else {
+			list.value = await listPackages()
+		}
 		loadingFailed.value = false
 	} catch (e) {
 		loadingFailed.value = true
@@ -38,6 +59,33 @@ async function loadData() {
 
 function goDetail(id: string) {
 	uni.navigateTo({ url: '/pages/package/detail?id=' + id })
+}
+
+function editPkg(id: string) {
+	uni.navigateTo({ url: '/pages/admin/package-edit?id=' + id })
+}
+
+function togglePkg(p: PackageItem) {
+	const target = p.status == 'upper' ? 'lower' : 'upper'
+	adminSetPackageStatus(p.id, target).then(() => {
+		uni.showToast({ title: '已更新', icon: 'success' })
+		loadData()
+	})
+}
+
+function removePkg(id: string) {
+	uni.showModal({
+		title: '确认删除',
+		content: '删除后顾客端不可见（软删除）',
+		success: (m) => {
+			if (m.confirm) {
+				adminDeletePackage(id).then(() => {
+					uni.showToast({ title: '已删除', icon: 'success' })
+					loadData()
+				}).catch((e: Error) => { uni.showToast({ title: e.message, icon: 'none' }) })
+			}
+		}
+	})
 }
 </script>
 
@@ -50,6 +98,9 @@ function goDetail(id: string) {
 	.name { font-size: 32rpx; font-weight: bold; }
 	.summary { font-size: 26rpx; color: #666666; margin-top: 8rpx; }
 	.price { font-size: 30rpx; color: #C85A54; margin-top: 12rpx; }
+	.op-row { display: flex; flex-direction: row; justify-content: flex-end; padding: 0 24rpx 24rpx; }
+	.op { color: #1677FF; font-size: 26rpx; margin-left: 32rpx; }
+	.op-danger { color: #C85A54; }
 	.empty { align-items: center; padding: 60rpx; }
 	.empty-text { color: #999999; font-size: 28rpx; }
 </style>

@@ -49,6 +49,35 @@ test('listPackages 过滤上架且未删除，映射为 camelCase 并带临时�
   expect(res.data[0].params[0]).toEqual({ paramName: '拍摄时长', paramValue: '60分钟' })
 })
 
+test('listPackagesAdmin 仅过滤已删除，返回含已下架套餐并映射 camelCase', async () => {
+  const chain = chainGet({
+    data: [
+      { _id: 'p1', name: '在售套餐', cover_image: 'cloud://c1', summary: 's1', price_display: '￥299 起',
+        params: [{ param_name: '精修', param_value: '15 张' }], detail_images: [], is_featured: false, sort: 1, status: 'upper', deleted: false },
+      { _id: 'p2', name: '已下架套餐', cover_image: 'cloud://c2', summary: 's2', price_display: '',
+        params: [], detail_images: ['cloud://d1'], is_featured: true, sort: 2, status: 'lower', deleted: false }
+    ]
+  })
+  mockDb.collection.mockImplementation((name) => {
+    expect(name).toBe('packages')
+    return chain
+  })
+  mockCloud.getTempFileURL.mockResolvedValue({ fileList: [
+    { fileID: 'cloud://c1', tempFileURL: 'https://t/c1', status: 0 },
+    { fileID: 'cloud://c2', tempFileURL: 'https://t/c2', status: 0 },
+    { fileID: 'cloud://d1', tempFileURL: 'https://t/d1', status: 0 }
+  ] })
+  const res = await main({ action: 'listPackagesAdmin' }, {})
+  expect(res.code).toBe(0)
+  // 查询条件只排除已删除（不像 listPackages 还要求上架）
+  expect(chain.where).toHaveBeenCalledWith({ deleted: false })
+  expect(res.data.length).toBe(2)
+  expect(res.data[0]).toMatchObject({ id: 'p1', name: '在售套餐', status: 'upper', coverImageUrl: 'https://t/c1' })
+  expect(res.data[0].params[0]).toEqual({ paramName: '精修', paramValue: '15 张' })
+  expect(res.data[1]).toMatchObject({ id: 'p2', name: '已下架套餐', status: 'lower', isFeatured: true })
+  expect(res.data[1].detailImageUrls).toEqual(['https://t/d1'])
+})
+
 test('getPackage 对下架/不存在返回 404', async () => {
   mockDb.collection.mockImplementation(() => ({
     doc: () => ({ get: jest.fn(async () => { throw new Error('document.get:fail') }) })

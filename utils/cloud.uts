@@ -167,6 +167,13 @@ function adminPackagePayload(p: PackageItem): UTSJSONObject {
 	return JSON.parse(JSON.stringify(p)) as UTSJSONObject
 }
 
+export function adminListPackages(): Promise<PackageItem[]> {
+	return callCloud('data', 'listPackagesAdmin', null).then((d: any) => {
+		const arr = (d ?? []) as Array<any>
+		return arr.map((o: any): PackageItem => toPackage(o as UTSJSONObject))
+	})
+}
+
 export function adminGetPackageById(id: string): Promise<PackageItem | null> {
 	return callCloud('admin', 'getPackageById', { id: id } as UTSJSONObject).then((d: any) => {
 		if (d == null) return null

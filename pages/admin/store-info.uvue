@@ -1,9 +1,173 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<text class="label">门店名称</text>
+		<input class="input" v-model="storeName" maxlength="30" placeholder="店铺名称" />
+
+		<text class="label">店铺 LOGO</text>
+		<view class="img-add small" @click="chooseLogo">
+			<image v-if="logoPreview != ''" class="logo-preview" :src="logoPreview" mode="aspectFill" />
+			<text v-else class="add-text">＋</text>
+		</view>
+
+		<text class="label">店铺介绍（≤500字）</text>
+		<textarea class="textarea" v-model="intro" maxlength="500" placeholder="介绍店铺风格、团队、特色" />
+
+		<text class="label">店内环境相册（多选）</text>
+		<view class="img-row">
+			<view class="img-item" v-for="(u, i) in photoPreviews" :key="i">
+				<image class="detail-img" :src="u" mode="aspectFill" />
+				<text class="img-del" @click="removePhoto(i)">×</text>
+			</view>
+			<view class="img-add small" @click="choosePhotos"><text class="add-text">＋</text></view>
+		</view>
+
+		<text class="label">营业时间</text>
+		<input class="input" v-model="businessHours" maxlength="100" placeholder="如：10:00-20:00，周一店休" />
+
+		<text class="label">门店地址</text>
+		<input class="input" v-model="address" maxlength="100" placeholder="文本地址" />
+
+		<text class="label">地图位置（点击选点，用于顾客导航）</text>
+		<view class="input" @click="chooseLocation">
+			<text>{{ (longitude != 0 && latitude != 0) ? ('已选：' + longitude + ', ' + latitude) : '点击选择地图位置' }}</text>
+		</view>
+
+		<text class="label">联系电话（展示用）</text>
+		<input class="input" type="number" v-model="contactPhone" maxlength="20" placeholder="如：0755-12345678" />
+
+		<text class="label">店铺小程序码（用于顾客分享海报，找开发者生成后上传）</text>
+		<view class="img-add small" @click="chooseQrcode">
+			<image v-if="qrcodePreview != ''" class="logo-preview" :src="qrcodePreview" mode="aspectFill" />
+			<text v-else class="add-text">＋</text>
+		</view>
+
+		<button class="save-btn" @click="save">保存</button>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { getStoreInfo, adminSaveStoreInfo, uploadImage, StoreInfo } from '../../utils/cloud.uts'
+
+const storeName = ref('')
+const logo = ref('')
+const logoPreview = ref('')
+const intro = ref('')
+const photos = ref<string[]>([])
+const photoPreviews = ref<string[]>([])
+const businessHours = ref('')
+const address = ref('')
+const longitude = ref(0)
+const latitude = ref(0)
+const contactPhone = ref('')
+const qrcodeImage = ref('')
+const qrcodePreview = ref('')
+
+onShow(() => {
+	load()
+})
+
+async function load() {
+	try {
+		const info: StoreInfo | null = await getStoreInfo()
+		if (info != null) {
+			storeName.value = info.storeName
+			logo.value = info.logo
+			logoPreview.value = info.logoUrl
+			intro.value = info.intro
+			photos.value = info.photos
+			photoPreviews.value = info.photoUrls
+			businessHours.value = info.businessHours
+			address.value = info.address
+			longitude.value = info.longitude
+			latitude.value = info.latitude
+			contactPhone.value = info.contactPhone
+			qrcodeImage.value = info.qrcodeImage
+			qrcodePreview.value = info.qrcodeImageUrl
+		}
+	} catch (e) {
+		// 首次为空属正常
+	}
+}
+
+function chooseLogo() {
+	uni.chooseImage({
+		count: 1,
+		success: (res) => {
+			const p = res.tempFilePaths[0]
+			uploadImage(p, 'store').then((f: string) => { logo.value = f; logoPreview.value = p })
+		}
+	})
+}
+function choosePhotos() {
+	uni.chooseImage({
+		count: 9,
+		success: (res) => {
+			res.tempFilePaths.forEach((p: string) => {
+				uploadImage(p, 'store').then((f: string) => { photos.value.push(f); photoPreviews.value.push(p) })
+			})
+		}
+	})
+}
+function removePhoto(i: number) {
+	photos.value.splice(i, 1)
+	photoPreviews.value.splice(i, 1)
+}
+function chooseQrcode() {
+	uni.chooseImage({
+		count: 1,
+		success: (res) => {
+			const p = res.tempFilePaths[0]
+			uploadImage(p, 'store').then((f: string) => { qrcodeImage.value = f; qrcodePreview.value = p })
+		}
+	})
+}
+function chooseLocation() {
+	// 管理端店主主动触发地图选点
+	uni.chooseLocation({
+		success: (res) => {
+			longitude.value = res.longitude
+			latitude.value = res.latitude
+			if (address.value == '') address.value = res.address
+		},
+		fail: () => { uni.showToast({ title: '未选择位置', icon: 'none' }) }
+	})
+}
+
+function save() {
+	uni.showLoading({ title: '保存中' })
+	adminSaveStoreInfo({
+		storeName: storeName.value, logo: logo.value, logoUrl: logoPreview.value,
+		intro: intro.value, photos: photos.value, photoUrls: photoPreviews.value,
+		businessHours: businessHours.value, address: address.value,
+		longitude: longitude.value, latitude: latitude.value,
+		contactPhone: contactPhone.value,
+		qrcodeImage: qrcodeImage.value, qrcodeImageUrl: qrcodePreview.value
+	} as StoreInfo).then(() => {
+		uni.hideLoading()
+		uni.showToast({ title: '已保存', icon: 'success' })
+	}).catch((e: Error) => {
+		uni.hideLoading()
+		uni.showToast({ title: e.message, icon: 'none' })
+	})
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.label { font-size: 26rpx; color: #666666; margin: 24rpx 8rpx 12rpx; }
+	.label.inline { margin: 0; }
+	.input { background-color: #FFFFFF; border-radius: 16rpx; padding: 20rpx 24rpx; font-size: 28rpx; }
+	.textarea { width: 100%; height: 200rpx; background-color: #FFFFFF; border-radius: 16rpx; padding: 20rpx 24rpx; font-size: 28rpx; }
+	.img-add { background-color: #FFFFFF; border-radius: 16rpx; height: 240rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+	.img-add.small { width: 160rpx; height: 160rpx; }
+	.logo-preview { width: 160rpx; height: 160rpx; }
+	.cover-preview { width: 100%; height: 240rpx; }
+	.add-text { color: #999999; font-size: 40rpx; }
+	.img-row { display: flex; flex-direction: row; flex-wrap: wrap; }
+	.img-item { position: relative; margin: 0 12rpx 12rpx 0; }
+	.detail-img { width: 160rpx; height: 160rpx; border-radius: 12rpx; }
+	.img-del { position: absolute; top: -10rpx; right: -10rpx; width: 40rpx; height: 40rpx; line-height: 40rpx; text-align: center; background-color: #1A1A1A; color: #FFFFFF; border-radius: 20rpx; font-size: 24rpx; }
+	.save-btn { margin: 40rpx 0 60rpx; background-color: #1A1A1A; color: #FFFFFF; border-radius: 44rpx; }
 </style>

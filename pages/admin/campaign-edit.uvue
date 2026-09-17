@@ -1,9 +1,198 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<text class="label">活动主题（必填，≤30字）</text>
+		<input class="input" v-model="title" maxlength="30" placeholder="如：盛夏毕业季特惠" />
+
+		<text class="label">季度标识</text>
+		<picker :range="seasonOptions" @change="onSeasonChange">
+			<view class="input"><text>{{ season == '' ? '请选择季度' : season }}</text></view>
+		</picker>
+
+		<text class="label">海报图（必填）</text>
+		<view class="img-add" @click="chooseBanner">
+			<image v-if="bannerPreview != ''" class="cover-preview" :src="bannerPreview" mode="aspectFill" />
+			<text v-else class="add-text">{{ bannerImage != '' ? '已上传海报，点击更换' : '＋ 选择海报' }}</text>
+		</view>
+
+		<text class="label">活动说明（图文块，可排序）</text>
+		<view class="block-edit" v-for="(b, i) in blocks" :key="i">
+			<textarea v-if="b.type == 'text'" class="textarea" v-model="b.text" maxlength="500" placeholder="输入文字段落" />
+			<view v-else class="block-img-wrap">
+				<image v-if="b.imageUrl != ''" class="block-img" :src="b.imageUrl" mode="widthFix" />
+				<view v-else class="block-img-empty"><text class="block-hint">已上传图片</text></view>
+				<text class="block-hint">图片块</text>
+			</view>
+			<view class="block-ops">
+				<text class="op" @click="moveBlock(i, -1)">上移</text>
+				<text class="op" @click="moveBlock(i, 1)">下移</text>
+				<text class="op op-danger" @click="removeBlock(i)">删除</text>
+			</view>
+		</view>
+		<view class="add-row">
+			<text class="add-link" @click="addTextBlock">＋ 文字段</text>
+			<text class="add-link" @click="addImageBlock">＋ 图片</text>
+		</view>
+
+		<text class="label">有效期</text>
+		<view class="date-row">
+			<picker mode="date" :value="startDate" @change="onStartChange">
+				<view class="input half"><text>{{ startDate == '' ? '开始日期' : startDate }}</text></view>
+			</picker>
+			<text class="date-sep">至</text>
+			<picker mode="date" :value="endDate" @change="onEndChange">
+				<view class="input half"><text>{{ endDate == '' ? '结束日期' : endDate }}</text></view>
+			</picker>
+		</view>
+
+		<view class="switch-row">
+			<text class="label inline">上架</text>
+			<switch :checked="status == 'upper'" @change="onStatusChange" />
+		</view>
+		<text class="label">排序值（越小越靠前）</text>
+		<input class="input" type="number" v-model="sort" placeholder="0" />
+
+		<button class="save-btn" @click="save">保存</button>
+		<button class="btn-plain" @click="cancel">取消</button>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { adminGetCampaignById, adminSaveCampaign, uploadImage, DescriptionBlock } from '../../utils/cloud.uts'
+
+const id = ref('')
+const title = ref('')
+const season = ref('')
+const bannerImage = ref('')
+const bannerPreview = ref('')
+const blocks = ref<DescriptionBlock[]>([])
+const startDate = ref('')
+const endDate = ref('')
+const status = ref('upper')
+const sort = ref(0)
+
+const seasonOptions = ref<string[]>([])
+{
+	const arr: string[] = []
+	for (let y = 2025; y <= 2027; y++) {
+		arr.push(y + '-Q1'); arr.push(y + '-Q2'); arr.push(y + '-Q3'); arr.push(y + '-Q4')
+	}
+	seasonOptions.value = arr
+}
+
+onLoad((option) => {
+	const cid = option?.id ?? ''
+	if (cid != '') load(cid)
+})
+
+async function load(cid: string) {
+	try {
+		const data = await adminGetCampaignById(cid)
+		if (data == null) return
+		id.value = data.id
+		title.value = data.title
+		season.value = data.season
+		bannerImage.value = data.bannerImage
+		bannerPreview.value = data.bannerImageUrl
+		blocks.value = data.descriptionBlocks
+		startDate.value = data.startDate
+		endDate.value = data.endDate
+		status.value = data.status
+		sort.value = data.sort
+	} catch (e) {
+		uni.showToast({ title: '加载失败', icon: 'none' })
+	}
+}
+
+function onSeasonChange(e: any) { season.value = seasonOptions.value[e.detail.value] }
+
+function chooseBanner() {
+	uni.chooseImage({
+		count: 1,
+		success: (res) => {
+			const p = res.tempFilePaths[0]
+			uploadImage(p, 'campaigns').then((fileID: string) => {
+				bannerImage.value = fileID
+				bannerPreview.value = p
+			}).catch((e: Error) => uni.showToast({ title: e.message, icon: 'none' }))
+		}
+	})
+}
+
+function addTextBlock() { blocks.value.push({ type: 'text', text: '', image: '', imageUrl: '' } as DescriptionBlock) }
+function addImageBlock() {
+	uni.chooseImage({
+		count: 1,
+		success: (res) => {
+			const p = res.tempFilePaths[0]
+			uploadImage(p, 'campaigns').then((fileID: string) => {
+				blocks.value.push({ type: 'image', text: '', image: fileID, imageUrl: p } as DescriptionBlock)
+			}).catch((e: Error) => uni.showToast({ title: e.message, icon: 'none' }))
+		}
+	})
+}
+function moveBlock(i: number, delta: number) {
+	const j = i + delta
+	if (j < 0 || j >= blocks.value.length) return
+	const tmp = blocks.value[i]
+	blocks.value[i] = blocks.value[j]
+	blocks.value[j] = tmp
+}
+function removeBlock(i: number) { blocks.value.splice(i, 1) }
+
+function onStartChange(e: any) { startDate.value = e.detail.value }
+function onEndChange(e: any) { endDate.value = e.detail.value }
+function onStatusChange(e: any) { status.value = e.detail.value ? 'upper' : 'lower' }
+
+function save() {
+	if (title.value.trim() == '') { uni.showToast({ title: '请填写活动主题', icon: 'none' }); return }
+	if (bannerImage.value == '') { uni.showToast({ title: '请上传海报图', icon: 'none' }); return }
+	if (startDate.value == '' || endDate.value == '') { uni.showToast({ title: '请选择有效期', icon: 'none' }); return }
+	if (endDate.value < startDate.value) { uni.showToast({ title: '结束日期不能早于开始日期', icon: 'none' }); return }
+	uni.showLoading({ title: '保存中' })
+	adminSaveCampaign({
+		id: id.value, title: title.value, season: season.value,
+		bannerImage: bannerImage.value, bannerImageUrl: '',
+		descriptionBlocks: blocks.value,
+		startDate: startDate.value, endDate: endDate.value,
+		sort: sort.value, status: status.value, expired: false
+	}).then(() => {
+		uni.hideLoading()
+		uni.showToast({ title: '已保存', icon: 'success' })
+		setTimeout(() => { uni.navigateBack({}) }, 600)
+	}).catch((e: Error) => {
+		uni.hideLoading()
+		uni.showToast({ title: e.message, icon: 'none' })
+	})
+}
+
+function cancel() { uni.navigateBack({}) }
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.label { font-size: 26rpx; color: #666666; margin: 24rpx 8rpx 12rpx; }
+	.label.inline { margin: 0; }
+	.input { background-color: #FFFFFF; border-radius: 16rpx; padding: 20rpx 24rpx; font-size: 28rpx; }
+	.input.half { flex: 1; text-align: center; }
+	.img-add { background-color: #FFFFFF; border-radius: 16rpx; height: 300rpx; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+	.cover-preview { width: 100%; height: 300rpx; }
+	.add-text { color: #999999; font-size: 40rpx; }
+	.block-edit { background-color: #FFFFFF; border-radius: 16rpx; padding: 20rpx; margin-bottom: 16rpx; }
+	.textarea { width: 100%; height: 140rpx; font-size: 26rpx; }
+	.block-img-wrap { display: flex; flex-direction: column; }
+	.block-img { width: 100%; border-radius: 12rpx; }
+	.block-img-empty { height: 120rpx; background-color: #F7F7F7; border-radius: 12rpx; align-items: center; justify-content: center; }
+	.block-hint { font-size: 22rpx; color: #999999; margin-top: 8rpx; }
+	.block-ops { display: flex; flex-direction: row; justify-content: flex-end; margin-top: 12rpx; }
+	.op { color: #1677FF; font-size: 24rpx; margin-left: 24rpx; }
+	.op-danger { color: #C85A54; }
+	.add-row { display: flex; flex-direction: row; }
+	.add-link { color: #1677FF; font-size: 26rpx; margin-right: 32rpx; padding: 12rpx 0; }
+	.date-row { display: flex; flex-direction: row; align-items: center; }
+	.date-sep { margin: 0 16rpx; color: #999999; }
+	.switch-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-top: 24rpx; }
+	.save-btn { margin-top: 40rpx; background-color: #1A1A1A; color: #FFFFFF; border-radius: 44rpx; }
+	.btn-plain { margin-top: 16rpx; background-color: #F2F2F2; color: #1A1A1A; border-radius: 44rpx; }
 </style>
