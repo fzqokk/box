@@ -1,9 +1,76 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<swiper v-if="pkg.detailImageUrls.length > 0" class="imgs" circular>
+			<swiper-item v-for="(u, i) in pkg.detailImageUrls" :key="i">
+				<image class="img" :src="u" mode="aspectFill" />
+			</swiper-item>
+		</swiper>
+
+		<view class="card">
+			<text class="name">{{ pkg.name }}</text>
+			<text class="price" v-if="pkg.priceDisplay != ''">{{ pkg.priceDisplay }}</text>
+			<text class="summary" v-if="pkg.summary != ''">{{ pkg.summary }}</text>
+		</view>
+
+		<view class="card" v-if="pkg.params.length > 0">
+			<text class="card-title">套餐参数</text>
+			<view class="param-row" v-for="(p, i) in pkg.params" :key="i">
+				<text class="param-name">{{ p.paramName }}</text>
+				<text class="param-value">{{ p.paramValue }}</text>
+			</view>
+		</view>
+
+		<view v-if="notFound" class="empty"><text class="empty-text">该套餐已下架或不存在</text></view>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref, reactive } from 'vue'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
+import { getPackage } from '../../utils/cloud.uts'
+
+const pkg = reactive({ id: '', name: '', coverImage: '', coverImageUrl: '', summary: '', priceDisplay: '', params: [], detailImages: [], detailImageUrls: [], isFeatured: false, sort: 0, status: 'upper' })
+const notFound = ref(false)
+
+onLoad((option) => {
+	const id = option?.id ?? ''
+	if (id != '') load(id)
+})
+
+// #ifdef MP-WEIXIN
+onShareAppMessage((): { title: string; path: string } => {
+	return { title: pkg.name != '' ? pkg.name + ' · etiniabox' : 'etiniabox 摄影套餐', path: '/pages/package/detail?id=' + pkg.id }
+})
+// #endif
+
+async function load(id: string) {
+	try {
+		const data = await getPackage(id)
+		if (data == null) { notFound.value = true; return }
+		pkg.id = data.id
+		pkg.name = data.name
+		pkg.priceDisplay = data.priceDisplay
+		pkg.summary = data.summary
+		pkg.params = data.params
+		pkg.detailImageUrls = data.detailImageUrls
+	} catch (e) {
+		notFound.value = true
+	}
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.imgs { height: 480rpx; border-radius: 24rpx; overflow: hidden; }
+	.img { width: 100%; height: 480rpx; }
+	.card { background-color: #FFFFFF; border-radius: 24rpx; padding: 32rpx; margin-top: 24rpx; display: flex; flex-direction: column; }
+	.name { font-size: 36rpx; font-weight: bold; }
+	.price { font-size: 32rpx; color: #C85A54; margin-top: 12rpx; }
+	.summary { font-size: 28rpx; color: #666666; margin-top: 12rpx; }
+	.card-title { font-size: 30rpx; font-weight: bold; margin-bottom: 16rpx; }
+	.param-row { display: flex; flex-direction: row; justify-content: space-between; padding: 16rpx 0; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #F0F0F0; }
+	.param-name { font-size: 28rpx; color: #666666; }
+	.param-value { font-size: 28rpx; color: #1A1A1A; }
+	.empty { align-items: center; padding: 60rpx; }
+	.empty-text { color: #999999; font-size: 28rpx; }
 </style>
