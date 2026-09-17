@@ -15,7 +15,6 @@
   "libVersion": "",
   "appid": "wx072b64216df948ab",
   "projectname": "etiniabox",
-  "miniprogramRoot": "unpackage/dist/dev/mp-weixin/",
   "cloud": true,
   "condition": {},
   "cloudfunctionRoot": "cloudfunctions/"
