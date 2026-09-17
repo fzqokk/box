@@ -25,9 +25,18 @@ export interface StoreInfo {
 }
 
 // ---------- 云函数调用信封 ----------
+let cloudReady = false
 function callCloud(name: string, action: string, payload: UTSJSONObject | null): Promise<any> {
 	return new Promise<any>((resolve, reject) => {
 		// #ifdef MP-WEIXIN
+		// 兜底初始化：正常由 App.uvue onLaunch 完成，防止生命周期时序导致 Cloud API isn't enabled
+		if (!cloudReady) {
+			wx.cloud.init({
+				env: CLOUD_ENV_ID,
+				traceUser: false // 不记录用户访问信息，配合“不采集个人信息”承诺
+			})
+			cloudReady = true
+		}
 		wx.cloud.callFunction({
 			name: name,
 			data: { action: action, payload: payload ?? {} }
