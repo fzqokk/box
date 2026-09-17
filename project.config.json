@@ -1,0 +1,22 @@
+{
+  "description": "项目配置文件模板：本文件在 HBuilderX 编译时合并到 unpackage/dist/dev/mp-weixin/project.config.json，保证云开发标志不被编译覆盖。",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": false,
+    "minified": false,
+    "newFeature": true,
+    "bigPackageSizeSupport": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "",
+  "appid": "wx072b64216df948ab",
+  "projectname": "etiniabox",
+  "miniprogramRoot": "unpackage/dist/dev/mp-weixin/",
+  "cloud": true,
+  "condition": {},
+  "cloudfunctionRoot": "cloudfunctions/"
+}
