@@ -1,9 +1,78 @@
 <template>
-	<view class="page"><text class="tip">建设中</text></view>
+	<scroll-view class="page" scroll-y>
+		<view v-if="!notFound && campaign.title != ''">
+			<image class="banner" :src="campaign.bannerImageUrl" mode="widthFix" />
+			<view class="card">
+				<text class="title">{{ campaign.title }}</text>
+				<text class="meta">{{ campaign.season }} · {{ campaign.startDate }} 至 {{ campaign.endDate }}</text>
+				<view v-if="campaign.expired" class="expired-tag"><text class="expired-text">活动已结束</text></view>
+			</view>
+
+			<view class="card" v-if="campaign.descriptionBlocks.length > 0">
+				<text class="card-title">活动说明</text>
+				<block v-for="(b, i) in campaign.descriptionBlocks" :key="i">
+					<text v-if="b.type == 'text' && b.text != ''" class="para">{{ b.text }}</text>
+					<image v-if="b.type == 'image' && b.imageUrl != ''" class="para-img" :src="b.imageUrl" mode="widthFix" />
+				</block>
+			</view>
+
+			<view class="card">
+				<text class="card-title">参与方式</text>
+				<text class="para">到店咨询店员，出示本页即可。</text>
+			</view>
+		</view>
+		<view v-if="notFound" class="empty"><text class="empty-text">活动不存在</text></view>
+	</scroll-view>
 </template>
+
 <script setup lang="uts">
+import { ref, reactive } from 'vue'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
+import { getCampaign, CampaignItem, DescriptionBlock } from '../../utils/cloud.uts'
+
+const campaign = reactive({ id: '', title: '', season: '', bannerImage: '', bannerImageUrl: '', descriptionBlocks: [] as DescriptionBlock[], startDate: '', endDate: '', sort: 0, status: 'upper', expired: false })
+const notFound = ref(false)
+
+onLoad((option) => {
+	const id = option?.id ?? ''
+	if (id != '') load(id)
+})
+
+// #ifdef MP-WEIXIN
+onShareAppMessage((): { title: string; path: string } => {
+	return { title: campaign.title != '' ? campaign.title : 'etiniabox 季度活动', path: '/pages/campaign/detail?id=' + campaign.id }
+})
+// #endif
+
+async function load(id: string) {
+	try {
+		const data: CampaignItem | null = await getCampaign(id)
+		if (data == null) { notFound.value = true; return }
+		campaign.id = data.id
+		campaign.title = data.title
+		campaign.season = data.season
+		campaign.bannerImageUrl = data.bannerImageUrl
+		campaign.descriptionBlocks = data.descriptionBlocks
+		campaign.startDate = data.startDate
+		campaign.endDate = data.endDate
+		campaign.expired = data.expired
+	} catch (e) {
+		notFound.value = true
+	}
+}
 </script>
+
 <style>
-	.page { padding: 40rpx; }
-	.tip { color: #999999; }
+	.page { padding: 24rpx; }
+	.banner { width: 100%; border-radius: 24rpx; }
+	.card { background-color: #FFFFFF; border-radius: 24rpx; padding: 32rpx; margin-top: 24rpx; }
+	.title { font-size: 36rpx; font-weight: bold; }
+	.meta { font-size: 26rpx; color: #666666; margin-top: 12rpx; }
+	.expired-tag { margin-top: 16rpx; background-color: #F2F2F2; border-radius: 12rpx; padding: 8rpx 20rpx; align-self: flex-start; }
+	.expired-text { color: #999999; font-size: 24rpx; }
+	.card-title { font-size: 30rpx; font-weight: bold; margin-bottom: 16rpx; }
+	.para { font-size: 28rpx; color: #444444; line-height: 1.6; margin-bottom: 16rpx; }
+	.para-img { width: 100%; border-radius: 16rpx; margin-bottom: 16rpx; }
+	.empty { align-items: center; padding: 60rpx; }
+	.empty-text { color: #999999; font-size: 28rpx; }
 </style>
