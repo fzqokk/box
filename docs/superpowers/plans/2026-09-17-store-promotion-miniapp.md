@@ -1476,7 +1476,7 @@ git add pages/about && git commit -m "feat: 门店信息页（介绍/相册/导�
 <script setup lang="uts">
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { listPackages, listCampaigns, getStoreInfo, PackageItem, CampaignItem } from '../utils/cloud.uts'
+import { listPackages, listCampaigns, getStoreInfo, PackageItem, CampaignItem } from '../../utils/cloud.uts'
 
 const storeName = ref('etiniabox')
 const storeIntro = ref('')
