@@ -1,0 +1,50 @@
+const STORAGE_KEY = 'checkin_records'
+
+/** 本机日期 YYYY-MM-DD */
+export function formatDateString(date: Date): string {
+	const y = date.getFullYear()
+	const m = date.getMonth() + 1
+	const d = date.getDate()
+	const mm = m < 10 ? '0' + m : '' + m
+	const dd = d < 10 ? '0' + d : '' + d
+	return y + '-' + mm + '-' + dd
+}
+
+/** 读取本机打卡日期数组 */
+export function loadCheckinDates(): string[] {
+	const v = uni.getStorageSync(STORAGE_KEY)
+	return (v ?? []) as string[]
+}
+
+export function isCheckedToday(dates: string[]): boolean {
+	return dates.includes(formatDateString(new Date()))
+}
+
+/** 执行打卡：每自然日仅一次；记录只存本机 */
+export function doCheckin(): { dates: string[]; firstToday: boolean } {
+	const today = formatDateString(new Date())
+	const dates = loadCheckinDates()
+	if (dates.includes(today)) {
+		return { dates: dates, firstToday: false }
+	}
+	dates.push(today)
+	uni.setStorageSync(STORAGE_KEY, dates)
+	return { dates: dates, firstToday: true }
+}
+
+/** 某月 42 格日历（6 行 x 7 列，周日起始），标记已打卡日 */
+export function buildMonthGrid(year: number, month: number, dates: string[]): boolean[] {
+	const grid: boolean[] = []
+	const first = new Date(year, month - 1, 1)
+	const startWeek = first.getDay()
+	const daysInMonth = new Date(year, month, 0).getDate()
+	for (let i = 0; i < 42; i++) {
+		const dayNum = i - startWeek + 1
+		if (dayNum < 1 || dayNum > daysInMonth) {
+			grid.push(false)
+		} else {
+			grid.push(dates.includes(formatDateString(new Date(year, month - 1, dayNum))))
+		}
+	}
+	return grid
+}

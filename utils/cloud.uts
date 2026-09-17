@@ -1,0 +1,282 @@
+import { CLOUD_ENV_ID } from './config.uts'
+
+// ---------- 数据模型（与云函数返回字段一一对应） ----------
+export interface PackageParam { paramName: string; paramValue: string }
+export interface PackageItem {
+	id: string; name: string; coverImage: string; coverImageUrl: string
+	summary: string; priceDisplay: string; params: PackageParam[]
+	detailImages: string[]; detailImageUrls: string[]
+	isFeatured: boolean; sort: number; status: string
+}
+export interface DescriptionBlock { type: string; text: string; image: string; imageUrl: string }
+export interface CampaignItem {
+	id: string; title: string; season: string
+	bannerImage: string; bannerImageUrl: string
+	descriptionBlocks: DescriptionBlock[]
+	startDate: string; endDate: string
+	sort: number; status: string; expired: boolean
+}
+export interface StoreInfo {
+	storeName: string; logo: string; logoUrl: string; intro: string
+	photos: string[]; photoUrls: string[]
+	businessHours: string; address: string
+	longitude: number; latitude: number
+	contactPhone: string; qrcodeImage: string; qrcodeImageUrl: string
+}
+
+// ---------- 云函数调用信封 ----------
+function callCloud(name: string, action: string, payload: UTSJSONObject | null): Promise<any> {
+	return new Promise<any>((resolve, reject) => {
+		// #ifdef MP-WEIXIN
+		wx.cloud.callFunction({
+			name: name,
+			data: { action: action, payload: payload ?? {} }
+		} as any).then((res: any) => {
+			const result = res.result as UTSJSONObject
+			if (result.getNumber('code') == 0) {
+				resolve(result['data'])
+			} else {
+				reject(new Error(result.getString('message') ?? '请求失败'))
+			}
+		}).catch((err: any) => {
+			reject(new Error(err.errMsg ?? '网络异常'))
+		})
+		// #endif
+	})
+}
+
+// ---------- 映射辅助 ----------
+function toPackage(o: UTSJSONObject): PackageItem {
+	const paramsRaw = (o['params'] ?? []) as Array<any>
+	return {
+		id: o.getString('id') ?? '',
+		name: o.getString('name') ?? '',
+		coverImage: o.getString('coverImage') ?? '',
+		coverImageUrl: o.getString('coverImageUrl') ?? '',
+		summary: o.getString('summary') ?? '',
+		priceDisplay: o.getString('priceDisplay') ?? '',
+		params: paramsRaw.map((p: any): PackageParam => {
+			const pj = p as UTSJSONObject
+			return { paramName: pj.getString('paramName') ?? '', paramValue: pj.getString('paramValue') ?? '' }
+		}),
+		detailImages: (o['detailImages'] ?? []) as string[],
+		detailImageUrls: (o['detailImageUrls'] ?? []) as string[],
+		isFeatured: o.getBoolean('isFeatured') ?? false,
+		sort: o.getNumber('sort') ?? 0,
+		status: o.getString('status') ?? 'upper'
+	}
+}
+
+function toCampaign(o: UTSJSONObject): CampaignItem {
+	const blocksRaw = (o['descriptionBlocks'] ?? []) as Array<any>
+	return {
+		id: o.getString('id') ?? '',
+		title: o.getString('title') ?? '',
+		season: o.getString('season') ?? '',
+		bannerImage: o.getString('bannerImage') ?? '',
+		bannerImageUrl: o.getString('bannerImageUrl') ?? '',
+		descriptionBlocks: blocksRaw.map((b: any): DescriptionBlock => {
+			const bj = b as UTSJSONObject
+			return {
+				type: bj.getString('type') ?? 'text',
+				text: bj.getString('text') ?? '',
+				image: bj.getString('image') ?? '',
+				imageUrl: bj.getString('imageUrl') ?? ''
+			}
+		}),
+		startDate: o.getString('startDate') ?? '',
+		endDate: o.getString('endDate') ?? '',
+		sort: o.getNumber('sort') ?? 0,
+		status: o.getString('status') ?? 'upper',
+		expired: o.getBoolean('expired') ?? false
+	}
+}
+
+function toStoreInfo(o: UTSJSONObject): StoreInfo {
+	return {
+		storeName: o.getString('storeName') ?? '',
+		logo: o.getString('logo') ?? '',
+		logoUrl: o.getString('logoUrl') ?? '',
+		intro: o.getString('intro') ?? '',
+		photos: (o['photos'] ?? []) as string[],
+		photoUrls: (o['photoUrls'] ?? []) as string[],
+		businessHours: o.getString('businessHours') ?? '',
+		address: o.getString('address') ?? '',
+		longitude: o.getNumber('longitude') ?? 0,
+		latitude: o.getNumber('latitude') ?? 0,
+		contactPhone: o.getString('contactPhone') ?? '',
+		qrcodeImage: o.getString('qrcodeImage') ?? '',
+		qrcodeImageUrl: o.getString('qrcodeImageUrl') ?? ''
+	}
+}
+
+// ---------- 顾客端接口 ----------
+export function getStoreInfo(): Promise<StoreInfo | null> {
+	return callCloud('data', 'getStoreInfo', null).then((d: any) => {
+		if (d == null) return null
+		return toStoreInfo(d as UTSJSONObject)
+	})
+}
+
+export function listPackages(): Promise<PackageItem[]> {
+	return callCloud('data', 'listPackages', null).then((d: any) => {
+		const arr = (d ?? []) as Array<any>
+		return arr.map((o: any): PackageItem => toPackage(o as UTSJSONObject))
+	})
+}
+
+export function getPackage(id: string): Promise<PackageItem | null> {
+	return callCloud('data', 'getPackage', { id: id } as UTSJSONObject).then((d: any) => {
+		if (d == null) return null
+		return toPackage(d as UTSJSONObject)
+	})
+}
+
+export function listCampaigns(): Promise<CampaignItem[]> {
+	return callCloud('data', 'listCampaigns', null).then((d: any) => {
+		const arr = (d ?? []) as Array<any>
+		return arr.map((o: any): CampaignItem => toCampaign(o as UTSJSONObject))
+	})
+}
+
+export function getCampaign(id: string): Promise<CampaignItem | null> {
+	return callCloud('data', 'getCampaign', { id: id } as UTSJSONObject).then((d: any) => {
+		if (d == null) return null
+		return toCampaign(d as UTSJSONObject)
+	})
+}
+
+// ---------- 管理端接口 ----------
+export function checkAdmin(): Promise<boolean> {
+	return callCloud('admin', 'checkAdmin', null).then((d: any) => {
+		const o = (d ?? {}) as UTSJSONObject
+		return o.getBoolean('isAdmin') ?? false
+	})
+}
+
+function adminPackagePayload(p: PackageItem): UTSJSONObject {
+	return JSON.parse(JSON.stringify(p)) as UTSJSONObject
+}
+
+export function adminGetPackageById(id: string): Promise<PackageItem | null> {
+	return callCloud('admin', 'getPackageById', { id: id } as UTSJSONObject).then((d: any) => {
+		if (d == null) return null
+		return toPackage(d as UTSJSONObject)
+	})
+}
+
+export function adminSavePackage(p: PackageItem): Promise<string> {
+	return callCloud('admin', 'savePackage', adminPackagePayload(p)).then((d: any) => {
+		const o = (d ?? {}) as UTSJSONObject
+		return o.getString('id') ?? ''
+	})
+}
+
+export function adminSetPackageStatus(id: string, status: string): Promise<void> {
+	return callCloud('admin', 'setPackageStatus', { id: id, status: status } as UTSJSONObject).then(() => {})
+}
+
+export function adminDeletePackage(id: string): Promise<void> {
+	return callCloud('admin', 'deletePackage', { id: id } as UTSJSONObject).then(() => {})
+}
+
+export function adminListCampaigns(): Promise<CampaignItem[]> {
+	return callCloud('admin', 'listCampaignsAdmin', null).then((d: any) => {
+		const arr = (d ?? []) as Array<any>
+		// 管理端列表拿到的是数据库原始 snake_case 文档
+		return arr.map((doc: any): CampaignItem => {
+			const j = doc as UTSJSONObject
+			const blocksRaw = (j['description_blocks'] ?? []) as Array<any>
+			return {
+				id: j.getString('_id') ?? '',
+				title: j.getString('title') ?? '',
+				season: j.getString('season') ?? '',
+				bannerImage: j.getString('banner_image') ?? '',
+				bannerImageUrl: '',
+				descriptionBlocks: blocksRaw.map((b: any): DescriptionBlock => {
+					const bj = b as UTSJSONObject
+					return { type: bj.getString('type') ?? 'text', text: bj.getString('text') ?? '', image: bj.getString('image') ?? '', imageUrl: '' }
+				}),
+				startDate: j.getString('start_date') ?? '',
+				endDate: j.getString('end_date') ?? '',
+				sort: j.getNumber('sort') ?? 0,
+				status: j.getString('status') ?? 'upper',
+				expired: (j.getString('end_date') ?? '') < todayLocal()
+			}
+		})
+	})
+}
+
+export function adminGetCampaignById(id: string): Promise<CampaignItem | null> {
+	return callCloud('admin', 'getCampaignById', { id: id } as UTSJSONObject).then((d: any) => {
+		if (d == null) return null
+		// 原始 snake_case → camelCase（ imageUrl 置空，编辑页用上传时本地路径预览 ）
+		const j = d as UTSJSONObject
+		const blocksRaw = (j['description_blocks'] ?? []) as Array<any>
+		return {
+			id: j.getString('_id') ?? '',
+			title: j.getString('title') ?? '',
+			season: j.getString('season') ?? '',
+			bannerImage: j.getString('banner_image') ?? '',
+			bannerImageUrl: '',
+			descriptionBlocks: blocksRaw.map((b: any): DescriptionBlock => {
+				const bj = b as UTSJSONObject
+				return { type: bj.getString('type') ?? 'text', text: bj.getString('text') ?? '', image: bj.getString('image') ?? '', imageUrl: '' }
+			}),
+			startDate: j.getString('start_date') ?? '',
+			endDate: j.getString('end_date') ?? '',
+			sort: j.getNumber('sort') ?? 0,
+			status: j.getString('status') ?? 'upper',
+			expired: false
+		} as CampaignItem
+	})
+}
+
+function campaignPayload(c: CampaignItem): UTSJSONObject {
+	return JSON.parse(JSON.stringify(c)) as UTSJSONObject
+}
+
+export function adminSaveCampaign(c: CampaignItem): Promise<string> {
+	return callCloud('admin', 'saveCampaign', campaignPayload(c)).then((d: any) => {
+		const o = (d ?? {}) as UTSJSONObject
+		return o.getString('id') ?? ''
+	})
+}
+
+export function adminSetCampaignStatus(id: string, status: string): Promise<void> {
+	return callCloud('admin', 'setCampaignStatus', { id: id, status: status } as UTSJSONObject).then(() => {})
+}
+
+export function adminDeleteCampaign(id: string): Promise<void> {
+	return callCloud('admin', 'deleteCampaign', { id: id } as UTSJSONObject).then(() => {})
+}
+
+export function adminSaveStoreInfo(s: StoreInfo): Promise<void> {
+	return callCloud('admin', 'saveStoreInfo', JSON.parse(JSON.stringify(s)) as UTSJSONObject).then(() => {})
+}
+
+// ---------- 图片上传（管理端） ----------
+export function uploadImage(tempFilePath: string, folder: string): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
+		// #ifdef MP-WEIXIN
+		const ext = tempFilePath.substring(tempFilePath.lastIndexOf('.'))
+		const cloudPath = folder + '/' + Date.now() + '-' + Math.floor(Math.random() * 100000) + ext
+		wx.cloud.uploadFile({
+			cloudPath: cloudPath,
+			filePath: tempFilePath,
+			success: (res: any) => resolve(res.fileID as string),
+			fail: (err: any) => reject(new Error(err.errMsg ?? '上传失败'))
+		} as any)
+		// #endif
+	})
+}
+
+/** 本地日期 YYYY-MM-DD（供 adminListCampaigns 过期判断复用） */
+export function todayLocal(): string {
+	const d = new Date()
+	const m = d.getMonth() + 1
+	const day = d.getDate()
+	const mm = m < 10 ? '0' + m : '' + m
+	const dd = day < 10 ? '0' + day : '' + day
+	return d.getFullYear() + '-' + mm + '-' + dd
+}

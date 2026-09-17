@@ -1,0 +1,9 @@
+<template>
+	<view class="page"><text class="tip">建设中</text></view>
+</template>
+<script setup lang="uts">
+</script>
+<style>
+	.page { padding: 40rpx; }
+	.tip { color: #999999; }
+</style>

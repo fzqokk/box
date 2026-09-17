@@ -1,17 +1,33 @@
 {
-	"pages": [ //pages数组中第一项表示应用启动页，参考：https://doc.dcloud.net.cn/uni-app-x/collocation/pagesjson.html
-		{
-			"path": "pages/index/index",
-			"style": {
-				"navigationBarTitleText": "uni-app x"
-			}
-		}
+	"pages": [
+		{ "path": "pages/index/index", "style": { "navigationBarTitleText": "etiniabox" } },
+		{ "path": "pages/package/list", "style": { "navigationBarTitleText": "套餐" } },
+		{ "path": "pages/package/detail", "style": { "navigationBarTitleText": "套餐详情" } },
+		{ "path": "pages/checkin/checkin", "style": { "navigationBarTitleText": "打卡" } },
+		{ "path": "pages/about/about", "style": { "navigationBarTitleText": "门店" } },
+		{ "path": "pages/campaign/detail", "style": { "navigationBarTitleText": "季度活动" } },
+		{ "path": "pages/admin/index", "style": { "navigationBarTitleText": "管理" } },
+		{ "path": "pages/admin/package-edit", "style": { "navigationBarTitleText": "编辑套餐" } },
+		{ "path": "pages/admin/campaign-edit", "style": { "navigationBarTitleText": "编辑活动" } },
+		{ "path": "pages/admin/store-info", "style": { "navigationBarTitleText": "门店信息" } }
 	],
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#1A1A1A",
+		"backgroundColor": "#FFFFFF",
+		"borderStyle": "black",
+		"list": [
+			{ "pagePath": "pages/index/index", "text": "首页" },
+			{ "pagePath": "pages/package/list", "text": "套餐" },
+			{ "pagePath": "pages/checkin/checkin", "text": "打卡" },
+			{ "pagePath": "pages/about/about", "text": "门店" }
+		]
+	},
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "uni-app x",
-		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
+		"navigationBarTitleText": "etiniabox",
+		"navigationBarBackgroundColor": "#FFFFFF",
+		"backgroundColor": "#F5F5F5"
 	},
 	"uniIdRouter": {}
 }
