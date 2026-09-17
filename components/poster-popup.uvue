@@ -1,0 +1,92 @@
+<template>
+	<view v-if="visible" class="mask" @click="close">
+		<view class="popup" @click.stop>
+			<canvas canvas-id="posterCanvas" id="posterCanvas" class="poster-canvas" />
+			<view class="btn-row">
+				<button class="btn" @click="save">保存到相册</button>
+				<button class="btn btn-plain" @click="close">关闭</button>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+import { watch } from 'vue'
+
+const props = defineProps({
+	visible: { type: Boolean, default: false },
+	count: { type: Number, default: 0 },
+	storeName: { type: String, default: 'etiniabox' },
+	qrcodeUrl: { type: String, default: '' },
+	logoUrl: { type: String, default: '' }
+})
+const emit = defineEmits(['close'])
+
+watch(() => props.visible, (v: boolean) => {
+	if (v) setTimeout(draw, 300) // 等 canvas 挂载
+})
+
+// 海报仅含店铺信息与打卡文案，不含用户照片与任何个人信息；全程本机合成
+function draw() {
+	const ctx = uni.createCanvasContext('posterCanvas')
+	// 画布逻辑尺寸 300 x 480 px
+	ctx.setFillStyle('#FFFFFF')
+	ctx.fillRect(0, 0, 300, 480)
+	ctx.setFillStyle('#1A1A1A')
+	ctx.setFontSize(24)
+	ctx.fillText(props.storeName, 20, 50)
+	if (props.logoUrl != '') {
+		ctx.drawImage(props.logoUrl, 20, 70, 260, 150)
+	}
+	ctx.setFillStyle('#444444')
+	ctx.setFontSize(16)
+	ctx.fillText('我在 ' + props.storeName + ' 完成第 ' + props.count + ' 次打卡', 20, 252)
+	if (props.qrcodeUrl != '') {
+		ctx.drawImage(props.qrcodeUrl, 90, 280, 120, 120)
+	} else {
+		ctx.setFillStyle('#F2F2F2')
+		ctx.fillRect(90, 280, 120, 120)
+	}
+	ctx.setFillStyle('#999999')
+	ctx.setFontSize(12)
+	ctx.fillText('扫码进入小程序 · 到店打卡', 88, 420)
+	ctx.draw()
+}
+
+function save() {
+	uni.canvasToTempFilePath({
+		canvasId: 'posterCanvas',
+		destWidth: 600,
+		destHeight: 960,
+		success: (res) => {
+			uni.saveImageToPhotosAlbum({
+				filePath: res.tempFilePath,
+				success: () => { uni.showToast({ title: '已保存到相册', icon: 'success' }) },
+				fail: () => {
+					// 相册授权被拒：引导去设置页开启
+					uni.showModal({
+						title: '无法保存',
+						content: '需要相册写入权限，请在设置中开启后重试',
+						confirmText: '去设置',
+						success: (m) => { if (m.confirm) uni.openSetting({}) }
+					})
+				}
+			})
+		},
+		fail: () => { uni.showToast({ title: '海报生成失败', icon: 'none' }) }
+	})
+}
+
+function close() {
+	emit('close')
+}
+</script>
+
+<style>
+	.mask { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; }
+	.popup { background-color: #FFFFFF; border-radius: 24rpx; padding: 32rpx; width: 600rpx; display: flex; flex-direction: column; align-items: center; }
+	.poster-canvas { width: 300px; height: 480px; }
+	.btn-row { display: flex; flex-direction: row; margin-top: 24rpx; width: 100%; }
+	.btn { flex: 1; background-color: #1A1A1A; color: #FFFFFF; border-radius: 40rpx; margin: 0 8rpx; }
+	.btn-plain { background-color: #F2F2F2; color: #1A1A1A; }
+</style>
